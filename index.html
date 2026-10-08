@@ -169,11 +169,26 @@
     <h1>Mis Finanzas</h1>
     <div class="actions">
       <span class="sub" id="todayLabel"></span>
+      <button class="logout-link" id="changePwBtn" type="button">Cambiar contraseña</button>
       <button class="logout-link" id="logoutBtn" type="button">Salir</button>
     </div>
   </header>
 
   <div id="statusBanner" class="status-banner" hidden></div>
+
+  <form class="add-form" id="pwForm">
+    <div class="field">
+      <label for="newPwInput">Contraseña nueva</label>
+      <input id="newPwInput" type="password" minlength="8" autocomplete="new-password" required>
+    </div>
+    <div class="field">
+      <label for="newPwInput2">Repetila</label>
+      <input id="newPwInput2" type="password" minlength="8" autocomplete="new-password" required>
+    </div>
+    <p class="form-error" id="pwError"></p>
+    <p class="form-error" id="pwSuccess" style="color:var(--ok)"></p>
+    <button class="submit-btn" id="pwSubmitBtn" type="submit">Guardar contraseña nueva</button>
+  </form>
 
   <section class="hero-card">
     <div class="hero-label">Patrimonio total</div>
@@ -295,6 +310,39 @@
   $('logoutBtn').addEventListener('click', async () => {
     if (channel) { client.removeChannel(channel); channel = null; }
     await client.auth.signOut();
+  });
+
+  $('changePwBtn').addEventListener('click', () => {
+    $('pwForm').classList.toggle('open');
+  });
+
+  $('pwForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('pwError');
+    const ok = $('pwSuccess');
+    err.classList.remove('show'); err.textContent = '';
+    ok.classList.remove('show'); ok.textContent = '';
+
+    const pw1 = $('newPwInput').value;
+    const pw2 = $('newPwInput2').value;
+    if (pw1.length < 8) { err.textContent = 'La contraseña tiene que tener al menos 8 caracteres.'; err.classList.add('show'); return; }
+    if (pw1 !== pw2) { err.textContent = 'Las dos contraseñas no coinciden.'; err.classList.add('show'); return; }
+
+    const btn = $('pwSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+    const { error } = await client.auth.updateUser({ password: pw1 });
+    btn.disabled = false;
+    btn.textContent = 'Guardar contraseña nueva';
+    if (error) {
+      err.textContent = 'No se pudo cambiar la contraseña. Probá de nuevo.';
+      err.classList.add('show');
+    } else {
+      $('newPwInput').value = '';
+      $('newPwInput2').value = '';
+      ok.textContent = 'Contraseña actualizada. Usala la próxima vez que entres.';
+      ok.classList.add('show');
+    }
   });
 
   client.auth.onAuthStateChange((event, session) => {
