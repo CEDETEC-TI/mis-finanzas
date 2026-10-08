@@ -468,29 +468,48 @@
     btn.disabled = true;
     btn.textContent = 'Creando...';
 
-    const { data: { session } } = await client.auth.getSession();
-    const { data, error } = await client.functions.invoke('create-user', {
-      body: { email },
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
+    try {
+      const { data: { session } } = await client.auth.getSession();
+      if (!session) throw { kind: 'no_session' };
+
+      const { data, error } = await client.functions.invoke('create-user', {
+        body: { email },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error || (data && data.error)) {
+        let msg = (data && data.error) || '';
+        let isNetworkError = false;
+        if (!msg && error) {
+          if (error.context && typeof error.context.json === 'function') {
+            try { msg = (await error.context.json()).error || ''; } catch (_) { msg = error.message || ''; }
+          } else {
+            isNetworkError = true;
+            msg = error.message || '';
+          }
+        }
+        console.error('create-user error:', msg, error);
+        err.textContent = msg === 'invalid_email' ? 'Ese email no es válido.'
+          : /already.*registered/i.test(msg) ? 'Ya existe una cuenta con ese email.'
+          : isNetworkError ? 'No se pudo conectar con el servidor. Revisá tu conexión y probá de nuevo.'
+          : msg ? `No se pudo crear el acceso (${msg}). Probá de nuevo.`
+          : 'No se pudo crear el acceso. Probá de nuevo.';
+        err.classList.add('show');
+      } else {
+        $('newUserEmail').value = '';
+        ok.textContent = `Listo. ${email} ya puede entrar con la contraseña ${data.default_password} y cambiarla después.`;
+        ok.classList.add('show');
+      }
+    } catch (ex) {
+      console.error('create-user exception:', ex);
+      err.textContent = ex && ex.kind === 'no_session'
+        ? 'Tu sesión expiró. Salí y entrá de nuevo.'
+        : 'No se pudo crear el acceso. Probá de nuevo.';
+      err.classList.add('show');
+    }
 
     btn.disabled = false;
     btn.textContent = 'Crear acceso';
-
-    if (error || (data && data.error)) {
-      let msg = (data && data.error) || '';
-      if (!msg && error && error.context && typeof error.context.json === 'function') {
-        try { msg = (await error.context.json()).error || ''; } catch (_) { /* ignore */ }
-      }
-      err.textContent = msg === 'invalid_email' ? 'Ese email no es válido.'
-        : /already.*registered/i.test(msg) ? 'Ya existe una cuenta con ese email.'
-        : 'No se pudo crear el acceso. Probá de nuevo.';
-      err.classList.add('show');
-    } else {
-      $('newUserEmail').value = '';
-      ok.textContent = `Listo. ${email} ya puede entrar con la contraseña ${data.default_password} y cambiarla después.`;
-      ok.classList.add('show');
-    }
   });
 
   client.auth.onAuthStateChange((event, session) => {
