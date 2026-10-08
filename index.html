@@ -180,11 +180,11 @@
   <form class="add-form" id="pwForm">
     <div class="field">
       <label for="newPwInput">Contraseña nueva</label>
-      <input id="newPwInput" type="password" minlength="8" autocomplete="new-password" required>
+      <input id="newPwInput" type="password" minlength="6" autocomplete="new-password" required>
     </div>
     <div class="field">
       <label for="newPwInput2">Repetila</label>
-      <input id="newPwInput2" type="password" minlength="8" autocomplete="new-password" required>
+      <input id="newPwInput2" type="password" minlength="6" autocomplete="new-password" required>
     </div>
     <p class="form-error" id="pwError"></p>
     <p class="form-error" id="pwSuccess" style="color:var(--ok)"></p>
@@ -337,7 +337,7 @@
 
     const pw1 = $('newPwInput').value;
     const pw2 = $('newPwInput2').value;
-    if (pw1.length < 8) { err.textContent = 'La contraseña tiene que tener al menos 8 caracteres.'; err.classList.add('show'); return; }
+    if (pw1.length < 6) { err.textContent = 'La contraseña tiene que tener al menos 6 caracteres.'; err.classList.add('show'); return; }
     if (pw1 !== pw2) { err.textContent = 'Las dos contraseñas no coinciden.'; err.classList.add('show'); return; }
 
     const btn = $('pwSubmitBtn');
@@ -347,7 +347,9 @@
     btn.disabled = false;
     btn.textContent = 'Guardar contraseña nueva';
     if (error) {
-      err.textContent = 'No se pudo cambiar la contraseña. Probá de nuevo.';
+      err.textContent = error.code === 'same_password'
+        ? 'Esa ya es tu contraseña actual. Poné una distinta.'
+        : 'No se pudo cambiar la contraseña. Probá de nuevo.';
       err.classList.add('show');
     } else {
       $('newPwInput').value = '';
