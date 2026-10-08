@@ -124,6 +124,14 @@
   .field-row { display: flex; gap: 10px; }
   .field-row .field { flex: 1; }
 
+  /* input[type=date] muestra el texto en el idioma del sistema del teléfono,
+     no el de la página — se lo hace invisible y se superpone un texto propio
+     en español; el input sigue recibiendo el toque y abre el selector nativo. */
+  .date-field-wrap { position: relative; }
+  .date-field-wrap input[type="date"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .date-display { width: 100%; background: var(--bg); border: 1.5px solid var(--line); border-radius: 9px; padding: 11px 12px; font-family: var(--font-body); font-size: 16px; color: var(--ink); pointer-events: none; }
+  .date-field-wrap input[type="date"]:focus + .date-display { outline: 2px solid var(--accent); outline-offset: 1px; }
+
   .form-error { color: var(--danger); font-size: 0.82rem; font-weight: 600; margin-bottom: 10px; display: none; }
   .form-error.show { display: block; }
   .submit-btn { width: 100%; background: var(--ink); color: var(--bg); border: none; border-radius: 10px; padding: 12px; font-weight: 700; font-size: 0.92rem; cursor: pointer; font-family: var(--font-body); }
@@ -291,7 +299,10 @@
       </div>
       <div class="field">
         <label for="dateInput">Fecha</label>
-        <input id="dateInput" type="date" required>
+        <div class="date-field-wrap">
+          <input id="dateInput" type="date" required>
+          <div class="date-display" id="dateDisplay"></div>
+        </div>
       </div>
     </div>
     <div class="field">
@@ -350,6 +361,12 @@
   function monthPrefix() { return todayStr().slice(0, 7); }
   function fmtDateLong(dateStr) {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
+  }
+  function updateDateDisplay() {
+    const v = $('dateInput').value;
+    $('dateDisplay').textContent = v
+      ? new Date(v + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '';
   }
 
   function escapeHtml(s) {
@@ -502,6 +519,9 @@
 
     $('todayLabel').textContent = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
     $('dateInput').value = todayStr();
+    updateDateDisplay();
+    $('dateInput').addEventListener('input', updateDateDisplay);
+    $('dateInput').addEventListener('change', updateDateDisplay);
     updateCategoryOptions();
     state.calMonth = monthPrefix();
 
@@ -564,6 +584,7 @@
         $('categoryInput').value = '';
         $('noteInput').value = '';
         $('dateInput').value = todayStr();
+        updateDateDisplay();
         form.classList.remove('open');
         toggleBtn.classList.remove('open');
         toggleBtn.innerHTML = '<span class="x">+</span> Agregar movimiento';
