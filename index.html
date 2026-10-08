@@ -170,6 +170,7 @@
     <div class="actions">
       <span class="sub" id="todayLabel"></span>
       <button class="logout-link" id="changePwBtn" type="button">Cambiar contraseña</button>
+      <button class="logout-link" id="adminBtn" type="button" hidden>Agregar persona</button>
       <button class="logout-link" id="logoutBtn" type="button">Salir</button>
     </div>
   </header>
@@ -188,6 +189,16 @@
     <p class="form-error" id="pwError"></p>
     <p class="form-error" id="pwSuccess" style="color:var(--ok)"></p>
     <button class="submit-btn" id="pwSubmitBtn" type="submit">Guardar contraseña nueva</button>
+  </form>
+
+  <form class="add-form" id="adminForm">
+    <div class="field">
+      <label for="newUserEmail">Email de la persona nueva</label>
+      <input id="newUserEmail" type="email" placeholder="ejemplo@mail.com" required>
+    </div>
+    <p class="form-error" id="adminError"></p>
+    <p class="form-error" id="adminSuccess" style="color:var(--ok)"></p>
+    <button class="submit-btn" id="adminSubmitBtn" type="submit">Crear acceso</button>
   </form>
 
   <section class="hero-card">
@@ -263,6 +274,7 @@
 (function () {
   const SUPABASE_URL = 'https://mxlriarzdpctqkzjjwii.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_m6oQvJMh___YNDctafQS7Q_kq36hjd2';
+  const ADMIN_USER_ID = 'a9542a3b-a674-427e-9c54-cd0984c16ad2';
   const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const DEFAULT_CATS = {
@@ -345,17 +357,62 @@
     }
   });
 
+  $('adminBtn').addEventListener('click', () => {
+    $('adminForm').classList.toggle('open');
+  });
+
+  $('adminForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('adminError');
+    const ok = $('adminSuccess');
+    err.classList.remove('show'); err.textContent = '';
+    ok.classList.remove('show'); ok.textContent = '';
+
+    const email = $('newUserEmail').value.trim();
+    const btn = $('adminSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Creando...';
+
+    const { data: { session } } = await client.auth.getSession();
+    const { data, error } = await client.functions.invoke('create-user', {
+      body: { email },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Crear acceso';
+
+    if (error || (data && data.error)) {
+      let msg = (data && data.error) || '';
+      if (!msg && error && error.context && typeof error.context.json === 'function') {
+        try { msg = (await error.context.json()).error || ''; } catch (_) { /* ignore */ }
+      }
+      err.textContent = msg === 'invalid_email' ? 'Ese email no es válido.'
+        : /already.*registered/i.test(msg) ? 'Ya existe una cuenta con ese email.'
+        : 'No se pudo crear el acceso. Probá de nuevo.';
+      err.classList.add('show');
+    } else {
+      $('newUserEmail').value = '';
+      ok.textContent = `Listo. ${email} ya puede entrar con la contraseña ${data.default_password} y cambiarla después.`;
+      ok.classList.add('show');
+    }
+  });
+
   client.auth.onAuthStateChange((event, session) => {
     if (session) {
       $('loginWrap').hidden = true;
       $('appWrap').hidden = false;
+      $('adminBtn').hidden = session.user.id !== ADMIN_USER_ID;
       startApp();
+      subscribeToData();
     } else {
       $('appWrap').hidden = true;
       $('loginWrap').hidden = false;
       $('loginBtn').disabled = false;
       $('loginBtn').textContent = 'Entrar';
       if (channel) { client.removeChannel(channel); channel = null; }
+      state.txns = [];
+      if (started) render();
     }
   });
 
@@ -431,9 +488,13 @@
       if (btn) handleDelete(btn.dataset.id, btn);
     });
 
+  }
+
+  function subscribeToData() {
+    if (channel) { client.removeChannel(channel); channel = null; }
     loadTransactions();
     channel = client
-      .channel('transactions-changes')
+      .channel('transactions-changes-' + Date.now())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => loadTransactions())
       .subscribe();
   }
@@ -540,7 +601,13 @@
 
   /* ---------------- init ---------------- */
   client.auth.getSession().then(({ data: { session } }) => {
-    if (session) { $('loginWrap').hidden = true; $('appWrap').hidden = false; startApp(); }
+    if (session) {
+      $('loginWrap').hidden = true;
+      $('appWrap').hidden = false;
+      $('adminBtn').hidden = session.user.id !== ADMIN_USER_ID;
+      startApp();
+      subscribeToData();
+    }
   });
 })();
 </script>
