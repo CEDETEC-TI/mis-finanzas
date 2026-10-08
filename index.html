@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mis Finanzas</title>
+<meta name="description" content="Control personal de ingresos, gastos y ahorro.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f6f4a'/><text x='16' y='22' text-anchor='middle' font-family='Arial,sans-serif' font-weight='700' font-size='16' fill='white'>$</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root {
+    --bg: #eef0ea;
+    --surface: #ffffff;
+    --surface-2: #e4e8dd;
+    --ink: #16231c;
+    --ink-soft: #5b6b60;
+    --line: #d6dbcd;
+    --accent: #1f6f4a;
+    --accent-soft: #e4efe7;
+    --ok: #2f9e5b;
+    --danger: #c1542c;
+    --save: #a6791f;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.45; min-height: 100vh; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  a { color: inherit; }
+
+  /* ---- header ---- */
+  header.top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
+  header.top h1 { font-size: 1.5rem; }
+  header.top .actions { display: flex; align-items: center; gap: 12px; }
+  header.top .sub { font-size: 0.78rem; color: var(--ink-soft); font-weight: 500; }
+  .logout-link { font-size: 0.76rem; color: var(--ink-soft); font-weight: 600; background: none; border: none; cursor: pointer; text-decoration: underline; font-family: var(--font-body); }
+
+  /* ---- login screen ---- */
+  .login-wrap { max-width: 380px; margin: 14vh auto 0; padding: 0 20px; }
+  .login-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 32px 26px; }
+  .login-card h1 { font-size: 1.6rem; margin-bottom: 6px; }
+  .login-card .sub { font-size: 0.86rem; color: var(--ink-soft); margin-bottom: 24px; }
+  .login-card .field { margin-bottom: 14px; }
+  .login-card label { display: block; font-size: 0.76rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+  .login-card input { width: 100%; background: var(--bg); border: 1.5px solid var(--line); border-radius: 9px; padding: 11px 12px; font-family: var(--font-body); font-size: 0.95rem; color: var(--ink); }
+  .login-card input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .login-error { color: var(--danger); font-size: 0.82rem; font-weight: 600; margin-bottom: 10px; display: none; }
+  .login-error.show { display: block; }
+  .login-btn { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 13px; font-weight: 700; font-size: 0.94rem; cursor: pointer; font-family: var(--font-body); margin-top: 6px; }
+  .login-btn:disabled { opacity: 0.6; cursor: default; }
+
+  /* ---- hero / patrimonio ---- */
+  .hero-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 24px 22px; margin-bottom: 14px; }
+  .hero-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); font-weight: 600; margin-bottom: 8px; }
+  .hero-value { font-family: var(--font-display); font-size: clamp(2.1rem, 9vw, 2.8rem); font-weight: 600; line-height: 1; }
+  .hero-row { display: flex; gap: 22px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .hero-row .item { flex: 1; min-width: 120px; }
+  .hero-row .item-label { font-size: 0.7rem; color: var(--ink-soft); font-weight: 600; margin-bottom: 3px; }
+  .hero-row .item-value { font-size: 1.08rem; font-weight: 700; }
+
+  /* ---- month summary tiles ---- */
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .tile-label { font-size: 0.7rem; color: var(--ink-soft); font-weight: 600; margin-bottom: 4px; }
+  .tile-value { font-size: 1.22rem; font-weight: 700; }
+  .tile.ingreso .tile-value { color: var(--ok); }
+  .tile.gasto .tile-value { color: var(--danger); }
+
+  /* ---- add button / form ---- */
+  .add-btn { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 14px; padding: 14px; font-family: var(--font-body); font-weight: 700; font-size: 0.95rem; cursor: pointer; margin-bottom: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .add-btn:hover { filter: brightness(1.06); }
+  .add-btn .x { font-size: 1.2rem; line-height: 1; transition: transform 0.15s ease; }
+  .add-btn.open .x { transform: rotate(45deg); }
+
+  form.add-form { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 14px; display: none; }
+  form.add-form.open { display: block; }
+
+  .type-pills { display: flex; gap: 8px; margin-bottom: 14px; }
+  .type-pill { flex: 1; text-align: center; padding: 10px 6px; border-radius: 10px; border: 1.5px solid var(--line); font-weight: 700; font-size: 0.82rem; cursor: pointer; background: var(--surface); color: var(--ink-soft); user-select: none; }
+  .type-pill[data-type="ingreso"].active { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .type-pill[data-type="gasto"].active { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .type-pill[data-type="ahorro"].active { background: var(--save); border-color: var(--save); color: #fff; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 0.76rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+  .field input { width: 100%; background: var(--bg); border: 1.5px solid var(--line); border-radius: 9px; padding: 11px 12px; font-family: var(--font-body); font-size: 0.95rem; color: var(--ink); }
+  .field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; }
+
+  .form-error { color: var(--danger); font-size: 0.82rem; font-weight: 600; margin-bottom: 10px; display: none; }
+  .form-error.show { display: block; }
+  .submit-btn { width: 100%; background: var(--ink); color: var(--bg); border: none; border-radius: 10px; padding: 12px; font-weight: 700; font-size: 0.92rem; cursor: pointer; font-family: var(--font-body); }
+  .submit-btn:disabled { opacity: 0.55; cursor: default; }
+
+  /* ---- category breakdown ---- */
+  .section-title { font-size: 0.82rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 22px 0 10px; }
+  .cat-bars { display: flex; flex-direction: column; gap: 10px; }
+  .cat-row { display: grid; grid-template-columns: 90px 1fr 70px; align-items: center; gap: 10px; }
+  .cat-row .cat-name { font-size: 0.82rem; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-row .cat-track { height: 9px; border-radius: 5px; background: var(--surface-2); overflow: hidden; }
+  .cat-row .cat-fill { height: 100%; background: var(--danger); border-radius: 5px; }
+  .cat-row .cat-amount { font-size: 0.8rem; font-weight: 700; text-align: right; }
+  .empty-mini { font-size: 0.84rem; color: var(--ink-soft); padding: 6px 0; }
+
+  /* ---- transaction list ---- */
+  .txn-list { display: flex; flex-direction: column; gap: 2px; }
+  .txn-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+  .txn-row:last-child { border-bottom: none; }
+  .txn-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .txn-dot.ingreso { background: var(--ok); }
+  .txn-dot.gasto { background: var(--danger); }
+  .txn-dot.ahorro { background: var(--save); }
+  .txn-main { flex: 1; min-width: 0; }
+  .txn-cat { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .txn-meta { font-size: 0.74rem; color: var(--ink-soft); }
+  .txn-amount { font-weight: 700; font-size: 0.92rem; white-space: nowrap; }
+  .txn-amount.ingreso { color: var(--ok); }
+  .txn-amount.gasto { color: var(--danger); }
+  .txn-amount.ahorro { color: var(--save); }
+  .txn-del { background: none; border: none; color: var(--ink-soft); font-size: 0.75rem; font-weight: 700; cursor: pointer; padding: 6px 8px; border-radius: 7px; flex-shrink: 0; }
+  .txn-del:hover { background: var(--surface-2); }
+  .txn-del.confirm { background: var(--danger); color: #fff; }
+
+  .empty-state { text-align: center; padding: 40px 16px; color: var(--ink-soft); }
+  .empty-state .big { font-size: 2rem; margin-bottom: 8px; }
+  .empty-state p { font-size: 0.88rem; max-width: 280px; margin: 6px auto 0; }
+
+  .status-banner { background: var(--surface-2); border-radius: 12px; padding: 12px 14px; font-size: 0.82rem; color: var(--ink-soft); margin-bottom: 14px; text-align: center; }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 420px) {
+    .hero-row .item { min-width: 100px; }
+    .cat-row { grid-template-columns: 72px 1fr 60px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="login-wrap" id="loginWrap">
+  <div class="login-card">
+    <h1>Mis Finanzas</h1>
+    <p class="sub">Entrá con tu cuenta para ver tus movimientos.</p>
+    <form id="loginForm">
+      <div class="field">
+        <label for="emailInput">Email</label>
+        <input id="emailInput" type="email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="passwordInput">Contraseña</label>
+        <input id="passwordInput" type="password" required autocomplete="current-password">
+      </div>
+      <p class="login-error" id="loginError"></p>
+      <button class="login-btn" id="loginBtn" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<div class="wrap" id="appWrap" hidden>
+  <header class="top">
+    <h1>Mis Finanzas</h1>
+    <div class="actions">
+      <span class="sub" id="todayLabel"></span>
+      <button class="logout-link" id="logoutBtn" type="button">Salir</button>
+    </div>
+  </header>
+
+  <div id="statusBanner" class="status-banner" hidden></div>
+
+  <section class="hero-card">
+    <div class="hero-label">Patrimonio total</div>
+    <div class="hero-value num" id="patrimonioValue">$0</div>
+    <div class="hero-row">
+      <div class="item">
+        <div class="item-label">Disponible</div>
+        <div class="item-value num" id="disponibleValue">$0</div>
+      </div>
+      <div class="item">
+        <div class="item-label">Ahorrado</div>
+        <div class="item-value num" id="ahorradoValue">$0</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="tiles">
+    <div class="tile ingreso">
+      <div class="tile-label">Ingresos del mes</div>
+      <div class="tile-value num" id="monthIngresos">$0</div>
+    </div>
+    <div class="tile gasto">
+      <div class="tile-label">Gastos del mes</div>
+      <div class="tile-value num" id="monthGastos">$0</div>
+    </div>
+  </div>
+
+  <button class="add-btn" id="toggleFormBtn" type="button"><span class="x">+</span> Agregar movimiento</button>
+
+  <form class="add-form" id="addForm">
+    <div class="type-pills" id="typePills">
+      <div class="type-pill active" data-type="ingreso">Ingreso</div>
+      <div class="type-pill" data-type="gasto">Gasto</div>
+      <div class="type-pill" data-type="ahorro">Ahorro</div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="amountInput">Monto (ARS)</label>
+        <input id="amountInput" type="number" inputmode="decimal" min="0" step="1" placeholder="0" required>
+      </div>
+      <div class="field">
+        <label for="dateInput">Fecha</label>
+        <input id="dateInput" type="date" required>
+      </div>
+    </div>
+    <div class="field">
+      <label for="categoryInput">Categoría</label>
+      <input id="categoryInput" type="text" list="categoryOptions" placeholder="Ej: Comida" required>
+      <datalist id="categoryOptions"></datalist>
+    </div>
+    <div class="field">
+      <label for="noteInput">Nota (opcional)</label>
+      <input id="noteInput" type="text" placeholder="Ej: Supermercado del sábado">
+    </div>
+    <p class="form-error" id="formError"></p>
+    <button class="submit-btn" id="submitBtn" type="submit">Guardar movimiento</button>
+  </form>
+
+  <div class="section-title">En qué gasto este mes</div>
+  <div class="cat-bars" id="catBars"><p class="empty-mini">Sin gastos cargados este mes.</p></div>
+
+  <div class="section-title">Movimientos recientes</div>
+  <div id="txnListWrap">
+    <div class="empty-state">
+      <div class="big">💸</div>
+      <p>Todavía no cargaste movimientos. Tocá "Agregar movimiento" para sumar el primero.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const SUPABASE_URL = 'https://mxlriarzdpctqkzjjwii.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_m6oQvJMh___YNDctafQS7Q_kq36hjd2';
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const DEFAULT_CATS = {
+    ingreso: ['Ventas CEDETEC', 'Sueldo / changa', 'Otro ingreso'],
+    gasto: ['Comida', 'Transporte', 'Vivienda', 'Servicios', 'Salud', 'Entretenimiento', 'Otro gasto'],
+    ahorro: ['Ahorro general', 'Dólares', 'Plazo fijo'],
+  };
+
+  const state = { txns: [], type: 'ingreso', deletingId: null };
+  let channel = null;
+
+  const $ = (id) => document.getElementById(id);
+  const money = (n) => '$' + Math.round(n || 0).toLocaleString('es-AR');
+
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function monthPrefix() { return todayStr().slice(0, 7); }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  /* ---------------- login ---------------- */
+  $('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('loginError');
+    err.classList.remove('show');
+    const email = $('emailInput').value.trim();
+    const password = $('passwordInput').value;
+    const btn = $('loginBtn');
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    if (error) {
+      err.textContent = 'Email o contraseña incorrectos.';
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+    // on success, onAuthStateChange handles the transition
+  });
+
+  $('logoutBtn').addEventListener('click', async () => {
+    if (channel) { client.removeChannel(channel); channel = null; }
+    await client.auth.signOut();
+  });
+
+  client.auth.onAuthStateChange((event, session) => {
+    if (session) {
+      $('loginWrap').hidden = true;
+      $('appWrap').hidden = false;
+      startApp();
+    } else {
+      $('appWrap').hidden = true;
+      $('loginWrap').hidden = false;
+      $('loginBtn').disabled = false;
+      $('loginBtn').textContent = 'Entrar';
+      if (channel) { client.removeChannel(channel); channel = null; }
+    }
+  });
+
+  /* ---------------- app ---------------- */
+  let started = false;
+  function startApp() {
+    if (started) return;
+    started = true;
+
+    $('todayLabel').textContent = new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
+    $('dateInput').value = todayStr();
+    updateCategoryOptions();
+
+    const toggleBtn = $('toggleFormBtn');
+    const form = $('addForm');
+    toggleBtn.addEventListener('click', () => {
+      const open = form.classList.toggle('open');
+      toggleBtn.classList.toggle('open', open);
+      toggleBtn.innerHTML = open ? '<span class="x">+</span> Cerrar' : '<span class="x">+</span> Agregar movimiento';
+      if (open) $('amountInput').focus();
+    });
+
+    $('typePills').addEventListener('click', (e) => {
+      const pill = e.target.closest('.type-pill');
+      if (!pill) return;
+      state.type = pill.dataset.type;
+      document.querySelectorAll('.type-pill').forEach(p => p.classList.toggle('active', p === pill));
+      updateCategoryOptions();
+    });
+
+    $('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = $('formError');
+      errEl.classList.remove('show');
+
+      const amount = parseFloat($('amountInput').value);
+      const date = $('dateInput').value;
+      const category = $('categoryInput').value.trim();
+      const note = $('noteInput').value.trim();
+
+      if (!amount || amount <= 0) { errEl.textContent = 'Ingresá un monto mayor a 0.'; errEl.classList.add('show'); return; }
+      if (!date) { errEl.textContent = 'Elegí una fecha.'; errEl.classList.add('show'); return; }
+      if (!category) { errEl.textContent = 'Ingresá una categoría.'; errEl.classList.add('show'); return; }
+
+      const { data: { user } } = await client.auth.getUser();
+      const submitBtn = $('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Guardando...';
+
+      const { error } = await client.from('transactions').insert({
+        type: state.type, amount, category, note, date, user_id: user.id,
+      });
+
+      if (error) {
+        errEl.textContent = 'No se pudo guardar. Probá de nuevo.';
+        errEl.classList.add('show');
+      } else {
+        $('amountInput').value = '';
+        $('categoryInput').value = '';
+        $('noteInput').value = '';
+        $('dateInput').value = todayStr();
+        form.classList.remove('open');
+        toggleBtn.classList.remove('open');
+        toggleBtn.innerHTML = '<span class="x">+</span> Agregar movimiento';
+        loadTransactions();
+      }
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Guardar movimiento';
+    });
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.txn-del');
+      if (btn) handleDelete(btn.dataset.id, btn);
+    });
+
+    loadTransactions();
+    channel = client
+      .channel('transactions-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => loadTransactions())
+      .subscribe();
+  }
+
+  async function loadTransactions() {
+    const { data, error } = await client
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) { showBanner('No se pudieron cargar los movimientos.'); return; }
+    state.txns = data || [];
+    render();
+    updateCategoryOptions();
+  }
+
+  function updateCategoryOptions() {
+    const list = $('categoryOptions');
+    const used = new Set();
+    state.txns.forEach(t => { if (t.type === state.type && t.category) used.add(t.category); });
+    const opts = [...DEFAULT_CATS[state.type], ...[...used].filter(c => !DEFAULT_CATS[state.type].includes(c))];
+    list.innerHTML = opts.map(c => `<option value="${escapeHtml(c)}">`).join('');
+  }
+
+  async function handleDelete(id, btn) {
+    if (state.deletingId !== id) {
+      state.deletingId = id;
+      btn.textContent = 'Confirmar';
+      btn.classList.add('confirm');
+      setTimeout(() => { if (state.deletingId === id) { state.deletingId = null; btn.textContent = 'Borrar'; btn.classList.remove('confirm'); } }, 3000);
+      return;
+    }
+    state.deletingId = null;
+    btn.disabled = true;
+    btn.textContent = '...';
+    const { error } = await client.from('transactions').delete().eq('id', id);
+    if (error) { btn.textContent = 'Error'; btn.disabled = false; }
+    else { loadTransactions(); }
+  }
+
+  function showBanner(msg) { const b = $('statusBanner'); b.textContent = msg; b.hidden = false; }
+
+  function render() {
+    const txns = state.txns;
+    const mp = monthPrefix();
+
+    let ingresos = 0, gastos = 0, ahorros = 0;
+    let mIngresos = 0, mGastos = 0;
+    const catTotals = {};
+
+    txns.forEach(t => {
+      const amt = Number(t.amount) || 0;
+      if (t.type === 'ingreso') ingresos += amt;
+      else if (t.type === 'gasto') gastos += amt;
+      else if (t.type === 'ahorro') ahorros += amt;
+
+      if ((t.date || '').startsWith(mp)) {
+        if (t.type === 'ingreso') mIngresos += amt;
+        if (t.type === 'gasto') { mGastos += amt; catTotals[t.category] = (catTotals[t.category] || 0) + amt; }
+      }
+    });
+
+    $('patrimonioValue').textContent = money(ingresos - gastos);
+    $('disponibleValue').textContent = money(ingresos - gastos - ahorros);
+    $('ahorradoValue').textContent = money(ahorros);
+    $('monthIngresos').textContent = money(mIngresos);
+    $('monthGastos').textContent = money(mGastos);
+
+    const catEl = $('catBars');
+    const catList = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+    if (!catList.length) {
+      catEl.innerHTML = '<p class="empty-mini">Sin gastos cargados este mes.</p>';
+    } else {
+      const max = catList[0][1];
+      catEl.innerHTML = catList.map(([cat, amt]) => `
+        <div class="cat-row">
+          <div class="cat-name">${escapeHtml(cat)}</div>
+          <div class="cat-track"><div class="cat-fill" style="width:${Math.max(4, (amt / max) * 100)}%"></div></div>
+          <div class="cat-amount num">${money(amt)}</div>
+        </div>`).join('');
+    }
+
+    const listEl = $('txnListWrap');
+    if (!txns.length) {
+      listEl.innerHTML = '<div class="empty-state"><div class="big">💸</div><p>Todavía no cargaste movimientos. Tocá "Agregar movimiento" para sumar el primero.</p></div>';
+      return;
+    }
+    const sign = { ingreso: '+', gasto: '−', ahorro: '→' };
+    listEl.innerHTML = '<div class="txn-list">' + txns.slice(0, 60).map(t => {
+      const d = t.date ? new Date(t.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) : '';
+      return `
+      <div class="txn-row" data-id="${t.id}">
+        <div class="txn-dot ${t.type}"></div>
+        <div class="txn-main">
+          <div class="txn-cat">${escapeHtml(t.category || 'Sin categoría')}</div>
+          <div class="txn-meta">${d}${t.note ? ' · ' + escapeHtml(t.note) : ''}</div>
+        </div>
+        <div class="txn-amount num ${t.type}">${sign[t.type] || ''} ${money(t.amount)}</div>
+        <button class="txn-del" type="button" data-id="${t.id}">Borrar</button>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
+  /* ---------------- init ---------------- */
+  client.auth.getSession().then(({ data: { session } }) => {
+    if (session) { $('loginWrap').hidden = true; $('appWrap').hidden = false; startApp(); }
+  });
+})();
+</script>
+
+</body>
+</html>
