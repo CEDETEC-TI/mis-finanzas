@@ -36,11 +36,17 @@
   a { color: inherit; }
 
   /* ---- header ---- */
-  header.top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
   header.top h1 { font-size: 1.5rem; }
-  header.top .actions { display: flex; align-items: center; gap: 12px; }
-  header.top .sub { font-size: 0.78rem; color: var(--ink-soft); font-weight: 500; }
-  .logout-link { font-size: 0.76rem; color: var(--ink-soft); font-weight: 600; background: none; border: none; cursor: pointer; text-decoration: underline; font-family: var(--font-body); }
+  .menu-wrap { position: relative; flex-shrink: 0; }
+  .menu-btn { width: 42px; height: 42px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line); font-size: 1.3rem; line-height: 1; cursor: pointer; color: var(--ink); display: flex; align-items: center; justify-content: center; }
+  .menu-btn:hover { background: var(--surface-2); }
+  .menu-dropdown { position: absolute; top: 48px; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.14); padding: 8px; min-width: 210px; z-index: 50; display: flex; flex-direction: column; gap: 2px; }
+  .menu-dropdown[hidden] { display: none; }
+  .menu-date { font-size: 0.74rem; color: var(--ink-soft); font-weight: 600; padding: 8px 10px 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+  .menu-item { text-align: left; background: none; border: none; padding: 12px 10px; border-radius: 9px; font-size: 0.9rem; font-weight: 600; color: var(--ink); cursor: pointer; font-family: var(--font-body); min-height: 44px; }
+  .menu-item:hover { background: var(--surface-2); }
+  .menu-item.danger { color: var(--danger); }
 
   /* ---- login screen ---- */
   .login-wrap { max-width: 380px; margin: 14vh auto 0; padding: 0 20px; }
@@ -148,7 +154,7 @@
   .txn-amount.ingreso { color: var(--ok); }
   .txn-amount.gasto { color: var(--danger); }
   .txn-amount.ahorro { color: var(--save); }
-  .txn-del { background: none; border: none; color: var(--ink-soft); font-size: 0.75rem; font-weight: 700; cursor: pointer; padding: 6px 8px; border-radius: 7px; flex-shrink: 0; }
+  .txn-del { background: none; border: none; color: var(--ink-soft); font-size: 0.75rem; font-weight: 700; cursor: pointer; padding: 11px 10px; margin: -11px -10px -11px 0; border-radius: 7px; flex-shrink: 0; min-height: 44px; }
   .txn-del:hover { background: var(--surface-2); }
   .txn-del.confirm { background: var(--danger); color: #fff; }
 
@@ -175,7 +181,7 @@
     <form id="loginForm">
       <div class="field">
         <label for="emailInput">Email</label>
-        <input id="emailInput" type="email" required autocomplete="username">
+        <input id="emailInput" type="email" required autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email">
       </div>
       <div class="field">
         <label for="passwordInput">Contraseña</label>
@@ -190,11 +196,14 @@
 <div class="wrap" id="appWrap" hidden>
   <header class="top">
     <h1>Mis Finanzas</h1>
-    <div class="actions">
-      <span class="sub" id="todayLabel"></span>
-      <button class="logout-link" id="changePwBtn" type="button">Cambiar contraseña</button>
-      <button class="logout-link" id="adminBtn" type="button" hidden>Agregar persona</button>
-      <button class="logout-link" id="logoutBtn" type="button">Salir</button>
+    <div class="menu-wrap">
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Menú" aria-haspopup="true" aria-expanded="false">⋮</button>
+      <div class="menu-dropdown" id="menuDropdown" hidden>
+        <div class="menu-date" id="todayLabel"></div>
+        <button class="menu-item" id="changePwBtn" type="button">Cambiar contraseña</button>
+        <button class="menu-item" id="adminBtn" type="button" hidden>Agregar persona</button>
+        <button class="menu-item danger" id="logoutBtn" type="button">Salir</button>
+      </div>
     </div>
   </header>
 
@@ -217,7 +226,7 @@
   <form class="add-form" id="adminForm">
     <div class="field">
       <label for="newUserEmail">Email de la persona nueva</label>
-      <input id="newUserEmail" type="email" placeholder="ejemplo@mail.com" required>
+      <input id="newUserEmail" type="email" placeholder="ejemplo@mail.com" required autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email">
     </div>
     <p class="form-error" id="adminError"></p>
     <p class="form-error" id="adminSuccess" style="color:var(--ok)"></p>
@@ -352,7 +361,7 @@
     e.preventDefault();
     const err = $('loginError');
     err.classList.remove('show');
-    const email = $('emailInput').value.trim();
+    const email = $('emailInput').value.trim().toLowerCase();
     const password = $('passwordInput').value;
     const btn = $('loginBtn');
     btn.disabled = true;
@@ -367,12 +376,30 @@
     // on success, onAuthStateChange handles the transition
   });
 
+  function closeMenu() {
+    $('menuDropdown').hidden = true;
+    $('menuBtn').setAttribute('aria-expanded', 'false');
+  }
+  $('menuBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const dropdown = $('menuDropdown');
+    const willOpen = dropdown.hidden;
+    dropdown.hidden = !willOpen;
+    $('menuBtn').setAttribute('aria-expanded', String(willOpen));
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-wrap')) closeMenu();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+
   $('logoutBtn').addEventListener('click', async () => {
+    closeMenu();
     if (channel) { client.removeChannel(channel); channel = null; }
     await client.auth.signOut();
   });
 
   $('changePwBtn').addEventListener('click', () => {
+    closeMenu();
     $('pwForm').classList.toggle('open');
   });
 
@@ -408,6 +435,7 @@
   });
 
   $('adminBtn').addEventListener('click', () => {
+    closeMenu();
     $('adminForm').classList.toggle('open');
   });
 
@@ -418,7 +446,7 @@
     err.classList.remove('show'); err.textContent = '';
     ok.classList.remove('show'); ok.textContent = '';
 
-    const email = $('newUserEmail').value.trim();
+    const email = $('newUserEmail').value.trim().toLowerCase();
     const btn = $('adminSubmitBtn');
     btn.disabled = true;
     btn.textContent = 'Creando...';
